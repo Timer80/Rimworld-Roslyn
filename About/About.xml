@@ -8,5 +8,8 @@
   </supportedVersions>
   <description>
   通用前置依赖包：加载Roslyn（Microsoft.CodeAnalysis）载荷
+
+  问题反馈与源码：https://github.com/Timer80/Rimworld-Roslyn
+  本模组的 bug 请到上述仓库的 Issues 提交，请勿向 dotnet/roslyn 报告。
   </description>
 </ModMetaData>
