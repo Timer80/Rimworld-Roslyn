@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <packageId>UE.Roslyn</packageId>
+  <name>Roslyn</name>
+  <author> Packer.Skylon</author>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>
+  通用前置依赖包：加载Roslyn（Microsoft.CodeAnalysis）载荷
+  </description>
+</ModMetaData>

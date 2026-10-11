@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Roslyn —— Roslyn 载荷前置加载包（RimWorld 模组程序集）
+
+    硬约束：
+      * TargetFramework 必须与 RimWorld 一致 = net472（Verse/Assembly-CSharp 是 net472）。
+      * 只引用 Assembly-CSharp（RimWorld 本体）；不引用 UnityEngine（门面不需要）。
+      * **绝不引用任何 Microsoft.CodeAnalysis**。本包一旦在元数据里留下 Roslyn typeref，
+        它自己就会成为「字段扫描 TypeLoadException」的新受害者。
+      * CopyLocalLockFileAssemblies=false —— 编译期引用不复制，运行时真身由游戏提供。
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <RootNamespace>Roslyn</RootNamespace>
+    <AssemblyName>Roslyn</AssemblyName>
+    <Version>1.0.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Deterministic>true</Deterministic>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <!-- 自定义输出目录：构建产物直接落到包根 Assemblies/ -->
+    <OutputPath>$(MSBuildThisFileDirectory)..\Assemblies\</OutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+    <SignAssembly>false</SignAssembly>
+  </PropertyGroup>
+
+  <!-- 游戏路径可参数化：-p:RimWorldGameDir=... 或环境变量 RIMWORLD_GAME_DIR -->
+  <PropertyGroup>
+    <RimWorldGameDir Condition="'$(RimWorldGameDir)'=='' and '$(RIMWORLD_GAME_DIR)'!=''">$(RIMWORLD_GAME_DIR)</RimWorldGameDir>
+    <RimWorldGameDir Condition="'$(RimWorldGameDir)'==''">C:\SteamLibrary\steamapps\common\RimWorld</RimWorldGameDir>
+    <RimWorldManagedDir>$(RimWorldGameDir)\RimWorldWin64_Data\Managed</RimWorldManagedDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 仅为 Verse.Log / [StaticConstructorOnStartup] 提供编译期引用（Private=false，不复制） -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(RimWorldManagedDir)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="GuardRefs" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(RimWorldManagedDir)\Assembly-CSharp.dll')"
+           Text="RimWorld 未找到：$(RimWorldManagedDir)。请用 -p:RimWorldGameDir=&lt;游戏根&gt; 或环境变量 RIMWORLD_GAME_DIR 指定。" />
+  </Target>
+
+  <!--
+    护栏：编译后自检产物里不得出现 Microsoft.CodeAnalysis typeref。
+    这是本包的核心不变量，违反即视为构建失败。
+  -->
+  <Target Name="AssertNoRoslynTypeRef" AfterTargets="Build">
+    <PropertyGroup>
+      <_DllPath>$(OutputPath)$(AssemblyName).dll</_DllPath>
+    </PropertyGroup>
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\tests\assert-no-roslyn-typref.ps1&quot; -Assembly &quot;$(_DllPath)&quot;"
+          ContinueOnError="false" />
+  </Target>
+
+</Project>

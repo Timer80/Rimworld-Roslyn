@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VictimMod —— 「受害者」模组模拟件。
+
+    它编译期**真实引用** Roslyn：ReplSession 有两个字段，其类型来自 Microsoft.CodeAnalysis。
+    这正是真实故障里消费方「Roslyn 桥接 / REPL 会话」类型的形状
+    （s_imageRefs : MetadataReference、v : VariableDeclaratorSyntax）。
+
+    只有当 Roslyn 载荷已加载时，对该类型做 GetFields 才不会抛 TypeLoadException。
+    本程序集存在的意义就是让自测能「先失败、后成功」地对照。
+
+    注意：本程序集**不进 Mods/**，仅由离线自测加载。
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>VictimMod</AssemblyName>
+    <RootNamespace>VictimMod</RootNamespace>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Roslyn 载荷目录：由自测脚本注入路径 -->
+    <RoslynPayloadDir Condition="'$(RoslynPayloadDir)'==''">$(MSBuildThisFileDirectory)..\..\Roslyn</RoslynPayloadDir>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 编译期真实引用 Roslyn（这是「受害者」的定义，不是 bug） -->
+    <Reference Include="Microsoft.CodeAnalysis">
+      <HintPath>$(RoslynPayloadDir)\Microsoft.CodeAnalysis.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.CodeAnalysis.CSharp">
+      <HintPath>$(RoslynPayloadDir)\Microsoft.CodeAnalysis.CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="GuardPayload" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(RoslynPayloadDir)\Microsoft.CodeAnalysis.dll')"
+           Text="Roslyn payload not found: $(RoslynPayloadDir)" />
+  </Target>
+
+</Project>
