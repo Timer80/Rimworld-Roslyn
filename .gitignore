@@ -1,0 +1,12 @@
+# 构建产物
+bin/
+obj/
+*.user
+
+# VS / Rider
+.vs/
+.idea/
+
+# 临时
+*.tmp
+*~

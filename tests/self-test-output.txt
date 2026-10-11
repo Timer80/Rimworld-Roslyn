@@ -1,0 +1,125 @@
+================================================================
+ Roslyn 离线自测
+================================================================
+package root : C:\SteamLibrary\steamapps\common\RimWorld\Roslyn
+payload dir  : C:\SteamLibrary\steamapps\common\RimWorld\Roslyn\Roslyn
+runtime      : .NET 10.0.12
+
+----------------------------------------------------------------
+ PHASE 0  typeref audit of the preload package itself
+----------------------------------------------------------------
+  preload dll        : C:\SteamLibrary\steamapps\common\RimWorld\Roslyn\Assemblies\Roslyn.dll
+  AssemblyRefs (3): mscorlib, Assembly-CSharp, System
+  TypeRefs (38):
+      CompilationRelaxationsAttribute  (ns=System.Runtime.CompilerServices)
+      RuntimeCompatibilityAttribute  (ns=System.Runtime.CompilerServices)
+      DebuggableAttribute  (ns=System.Diagnostics)
+      DebuggingModes  (ns=)
+      TargetFrameworkAttribute  (ns=System.Runtime.Versioning)
+      AssemblyCompanyAttribute  (ns=System.Reflection)
+      AssemblyConfigurationAttribute  (ns=System.Reflection)
+      AssemblyFileVersionAttribute  (ns=System.Reflection)
+      AssemblyInformationalVersionAttribute  (ns=System.Reflection)
+      AssemblyProductAttribute  (ns=System.Reflection)
+      AssemblyTitleAttribute  (ns=System.Reflection)
+      StaticConstructorOnStartup  (ns=Verse)
+      Object  (ns=System)
+      CompilerGeneratedAttribute  (ns=System.Runtime.CompilerServices)
+      Action`1  (ns=System)
+      Dictionary`2  (ns=System.Collections.Generic)
+      Assembly  (ns=System.Reflection)
+      ArgumentException  (ns=System)
+      Exception  (ns=System)
+      Type  (ns=System)
+      StringBuilder  (ns=System.Text)
+      Monitor  (ns=System.Threading)
+      String  (ns=System)
+      Path  (ns=System.IO)
+      MemberInfo  (ns=System.Reflection)
+      File  (ns=System.IO)
+      Int32  (ns=System)
+      Directory  (ns=System.IO)
+      Environment  (ns=System)
+      RuntimeTypeHandle  (ns=System)
+      StringComparison  (ns=System)
+      Uri  (ns=System)
+      AppDomain  (ns=System)
+      AssemblyName  (ns=System.Reflection)
+      Version  (ns=System)
+      StringComparer  (ns=System)
+      IEqualityComparer`1  (ns=System.Collections.Generic)
+      Log  (ns=Verse)
+  PASS  preload has no Microsoft.CodeAnalysis AssemblyRef
+  PASS  preload has no Microsoft.CodeAnalysis TypeRef
+----------------------------------------------------------------
+ PHASE 1  field scan BEFORE preload (expect TypeLoadException)
+----------------------------------------------------------------
+  VictimMod loaded from C:\SteamLibrary\steamapps\common\RimWorld\Roslyn\tests\bin\Release\net10.0\VictimMod.dll
+
+  [pre-preload] GetFields returned 2 field(s); resolving each field type:
+      s_imageRefs : <FieldType resolution THREW FileNotFoundException>
+          Could not load file or assembly 'Microsoft.CodeAnalysis, Version=4.14.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35'. 系统找不到指定的文件。
+
+  => PRE-LOAD SCAN THREW, as expected. This is the bug being fixed.
+
+----------------------------------------------------------------
+ PHASE 2  run the preload package (fixed order, idempotent)
+----------------------------------------------------------------
+  [preload] Roslyn 载荷加载完成（8/8）。
+  PASS  RoslynPayloadLoader.TryEnsureLoaded() == true
+  PASS  loaded count == 8
+  diagnostics:
+[Roslyn] 诊断
+    已尝试: 是
+    可用  : 是
+    程序集: 8/8
+    载荷目录: C:\SteamLibrary\steamapps\common\RimWorld\Roslyn\Roslyn
+    版本:
+      System.Numerics.Vectors = 10.0.0.0
+      System.Runtime.CompilerServices.Unsafe = 10.0.0.0
+      System.Threading.Tasks.Extensions = 10.0.0.0
+      System.Memory = 10.0.0.0
+      System.Collections.Immutable = 10.0.0.0
+      System.Reflection.Metadata = 10.0.0.0
+      Microsoft.CodeAnalysis = 4.14.0.0
+      Microsoft.CodeAnalysis.CSharp = 4.14.0.0
+  
+----------------------------------------------------------------
+ PHASE 3  field scan AFTER preload (must NOT throw)
+----------------------------------------------------------------
+  [post-preload] GetFields returned 2 field(s); resolving each field type:
+      s_imageRefs : Microsoft.CodeAnalysis.MetadataReference  (asm=Microsoft.CodeAnalysis)
+      v : Microsoft.CodeAnalysis.CSharp.Syntax.VariableDeclaratorSyntax  (asm=Microsoft.CodeAnalysis.CSharp)
+  PASS  post-preload scan of VictimMod.ReplSession did NOT throw
+----------------------------------------------------------------
+ PHASE 4  full-assembly field scan (Parallel.ForEach equivalent)
+----------------------------------------------------------------
+  assemblies scanned : 19
+  types scanned      : 9060
+  fields reflected   : 16705
+  PASS  no type threw during GetFields across all loaded assemblies
+----------------------------------------------------------------
+ PHASE 4b  force runtime resolution of the victim Roslyn fields
+----------------------------------------------------------------
+  field s_imageRefs -> Microsoft.CodeAnalysis.MetadataReference (asm=Microsoft.CodeAnalysis)
+      resolved OK, IsClass=True, BaseType=System.Object
+  field v -> Microsoft.CodeAnalysis.CSharp.Syntax.VariableDeclaratorSyntax (asm=Microsoft.CodeAnalysis.CSharp)
+      resolved OK, IsClass=True, BaseType=Microsoft.CodeAnalysis.CSharp.CSharpSyntaxNode
+  => Forced resolution OK: the victim's Roslyn field types are now resolvable.
+  PASS  post-preload: victim's Roslyn field types resolvable at runtime
+----------------------------------------------------------------
+ PHASE 5  idempotency + failure caching
+----------------------------------------------------------------
+  PASS  second TryEnsureLoaded() == true
+  PASS  third TryEnsureLoaded() == true
+  PASS  LoadedCount still == 8 (no double-load, no throw)
+  => repeated calls are idempotent; Mono's typeref negative-cache is not re-triggered.
+----------------------------------------------------------------
+ PHASE 6  type resolution after preload
+----------------------------------------------------------------
+  PASS  resolvable: Microsoft.CodeAnalysis.MetadataReference
+  PASS  resolvable: Microsoft.CodeAnalysis.CSharp.Syntax.VariableDeclaratorSyntax
+
+================================================================
+ RESULT: 12 passed, 0 failed
+================================================================

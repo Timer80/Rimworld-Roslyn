@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    离线自测工程（不进 Mods/，不被 RimWorld 加载）。
+
+    三个阶段：
+      0) typeref 审计  —— 用 System.Reflection.Metadata 真正枚举 AssemblyRef/TypeRef 表，
+                          权威证明前置包产物里没有任何 Roslyn 元数据引用。
+      1~4) 字段扫描复现 —— 先跑前置包加载，再对所有已加载程序集做
+                          GetFields(Static|Public|NonPublic)，验证不再抛 TypeLoadException。
+      5~6) 幂等 / 失败缓存 / 类型解析正向验证。
+
+    关键约束：本工程编译期**不引用** Microsoft.CodeAnalysis。
+    「受害者」VictimMod（编译期真实引用 Roslyn）以**产物 dll** 形式被引用，
+    这样既保留真实元数据 typeref，又不会把 Roslyn 引用传染到本工程。
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- 离线自测跑在本机 .NET 上（本机装的是 .NET 10 runtime），
+         与模组程序集本身无关：模组产物仍是 net472。
+         本工程只需 net>=6 即可，这里跟本机 runtime 对齐以免缺 framework。 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Roslyn.Tests</RootNamespace>
+    <AssemblyName>Roslyn.Tests</AssemblyName>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RoslynPayloadDir Condition="'$(RoslynPayloadDir)'==''">$(MSBuildThisFileDirectory)..\Roslyn</RoslynPayloadDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 受害者程序集：编译期真实引用 Roslyn 类型的字段（复现 bug 的必要条件）。
+         引用产物 dll 而非 ProjectReference：ProjectReference 会让本工程的默认
+         Compile glob 把 VictimMod 的 .cs 再编译一遍，而本工程不引用 Roslyn dll，
+         结果 CS0234。引用产物正好模拟「mod 程序集已 LoadFrom、Roslyn 尚未加载」。 -->
+    <Reference Include="VictimMod">
+      <HintPath>VictimMod\bin\$(Configuration)\VictimMod.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+
+    <!-- 前置包核心（Verse 无关）。通过源码共享而非项目引用，避免离线环境依赖游戏程序集。 -->
+    <Compile Include="..\Source\RoslynPayloadLoader.cs" Link="Shared\RoslynPayloadLoader.cs" />
+  </ItemGroup>
+
+  <!-- 关键：默认 glob 会把 VictimMod 的 .cs 收进来，必须排除（它在别的工程里编译）。 -->
+  <ItemGroup>
+    <Compile Remove="VictimMod\**\*.cs" />
+    <None Remove="VictimMod\**" />
+    <Compile Remove="obj\**" />
+  </ItemGroup>
+
+  <!-- 先构建受害者程序集，再构建本工程 -->
+  <Target Name="BuildVictimMod" BeforeTargets="ResolveAssemblyReferences">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)VictimMod\VictimMod.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);RoslynPayloadDir=$(RoslynPayloadDir)"
+             BuildInParallel="false" />
+  </Target>
+
+  <Target Name="GuardVictimMod" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)VictimMod\bin\$(Configuration)\VictimMod.dll')"
+           Text="VictimMod.dll missing. Build tests/VictimMod/VictimMod.csproj first (RoslynPayloadDir=$(RoslynPayloadDir))." />
+  </Target>
+
+</Project>
